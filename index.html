@@ -772,10 +772,23 @@ function parseSlipText(text){
 
   // ================= render =================
   function months(){ return [...new Set(records.map(monthOf))].sort().reverse(); }
+  // every month from the earliest slip (at least the last 12 months) up to this month or the newest slip
+  const ymKey = (y,m) => `${y}-${String(m).padStart(2,"0")}`;
+  function monthOptions(){
+    const now = new Date(); const cur = ymKey(now.getFullYear(), now.getMonth()+1);
+    const dated = months().filter(m=>m!=="日付不明");
+    const back = new Date(now.getFullYear(), now.getMonth()-11, 1);
+    let lo = ymKey(back.getFullYear(), back.getMonth()+1), hi = cur;
+    if(dated.length){ const mn = dated[dated.length-1], mx = dated[0]; if(mn<lo) lo=mn; if(mx>hi) hi=mx; }
+    const out = []; let [y,m] = hi.split("-").map(Number);
+    while(ymKey(y,m) >= lo && out.length < 240){ out.push(ymKey(y,m)); if(--m===0){ m=12; y--; } }
+    if(months().includes("日付不明")) out.push("日付不明");
+    return out;
+  }
   function visible(){
     const ms = months();
     let m = month==="__latest" ? (ms[0]||"__all") : month;
-    if(m!=="__all" && !ms.includes(m)) m = ms[0] || "__all";
+    if(m!=="__all" && !monthOptions().includes(m)) m = ms[0] || "__all";
     shownMonth = m;
     const list = m==="__all" ? records.slice() : records.filter(r=>monthOf(r)===m);
     return list.sort((a,b)=> (b.data.date||"").localeCompare(a.data.date||"") || (b.createdAt||"").localeCompare(a.createdAt||""));
@@ -784,14 +797,18 @@ function parseSlipText(text){
     renderPending();
     const vis = visible();
     const sel = $("monthSel"); sel.replaceChildren();
-    for(const m of months()){
+    let lastYear = null, group = sel;
+    for(const m of monthOptions()){
       const n = records.filter(r=>monthOf(r)===m).length;
-      sel.append(el("option",{value:m}, (m==="日付不明"?m:m.replace("-","年")+"月")+`（${n}枚）`));
+      const y = m==="日付不明" ? "その他" : m.slice(0,4)+"年";
+      if(y!==lastYear){ group = el("optgroup",{label:y}); sel.append(group); lastYear = y; }
+      group.append(el("option",{value:m}, (m==="日付不明"?m:Number(m.slice(5))+"月")+`（${n}枚）`));
     }
-    sel.append(el("option",{value:"__all"},`全期間（${records.length}枚）`));
+    sel.prepend(el("option",{value:"__all"},`全期間（${records.length}枚）`));
     sel.value = shownMonth;
     $("toolbar").hidden = !records.length;
     const list = $("list"); list.replaceChildren();
+    if(records.length && !vis.length) list.append(el("div",{class:"empty"},`${shownMonth.replace("-","年").replace(/年0?/,"年")}月の伝票はまだ記録されていません。`));
     for(const r of vis) list.append(slipCard(r, false));
     $("empty").hidden = records.length>0;
     $("recordsTitle").textContent = records.length ? "記録した伝票" : "記録した伝票（まだありません）";
