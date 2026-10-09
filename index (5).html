@@ -1,0 +1,1016 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="納品書">
+<meta name="theme-color" content="#18293A">
+<title>納品書→Excel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<style>
+:root{
+  --bg:#EEF3F7; --slip:#DCEAF5; --paper:#FFFFFF; --ink:#18293A; --sub:#566B80;
+  --rule:#A9BFD2; --stamp:#C42E3A; --ok:#2E7A55; --warn:#9A6B00; --warnbg:#FFF3D1; --btn:#18293A; --btn-ink:#FFFFFF;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1923; --slip:#1A2B3B; --paper:#14222F; --ink:#E4EDF5; --sub:#93A8BC;
+    --rule:#33506A; --stamp:#F0646E; --ok:#5CC48F; --warn:#F2C14E; --warnbg:#3A3015; --btn:#DCEAF5; --btn-ink:#0F1923;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F1923; --slip:#1A2B3B; --paper:#14222F; --ink:#E4EDF5; --sub:#93A8BC;
+  --rule:#33506A; --stamp:#F0646E; --ok:#5CC48F; --warn:#F2C14E; --warnbg:#3A3015; --btn:#DCEAF5; --btn-ink:#0F1923;
+}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;line-height:1.6;
+  padding-top:env(safe-area-inset-top,0px)}
+main{max-width:1100px;margin:0 auto;padding:20px 16px 130px}
+h1{font-weight:900;font-size:1.5rem;letter-spacing:.04em;margin:8px 0 2px}
+h2{font-size:1.05rem;margin:28px 0 10px}
+.lead{color:var(--sub);margin:0 0 20px;font-size:.92rem}
+.drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:150px;margin-bottom:14px;
+  border:2.5px dashed var(--rule);border-radius:16px;background:var(--paper);cursor:pointer;text-align:center;padding:20px}
+.drop strong{font-size:1.15rem}
+.drop span{font-size:.85rem;color:var(--sub)}
+.drop.over{border-color:var(--stamp);background:var(--slip)}
+.drop:focus-within{outline:3px solid var(--stamp);outline-offset:2px}
+.drop input{position:absolute;opacity:0;width:1px;height:1px}
+.queue{font-size:.85rem;color:var(--sub);margin:0 0 6px}
+.settings{background:var(--paper);border:1.5px solid var(--rule);border-radius:14px;padding:0 16px;margin-bottom:14px}
+.settings summary{cursor:pointer;padding:12px 0;font-weight:700}
+.settings summary span{font-weight:400;color:var(--sub);margin-left:6px}
+.settings .row{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin:0 0 12px;font-size:.9rem}
+.settings input[type=password],.settings input[type=text],.settings select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--rule);border-radius:8px;padding:8px 10px;min-height:40px}
+.settings input[type=password],.settings input[type=text]{flex:1;min-width:240px}
+.settings .help{font-size:.82rem;color:var(--sub);margin:0 0 12px}
+.settings .help a{color:inherit}
+.keymsg{font-size:.85rem}
+.keymsg.ok{color:var(--ok)} .keymsg.ng{color:var(--stamp)}
+.shoot{display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:14px}
+.shoot label{display:flex;align-items:center;justify-content:center;gap:8px;min-height:64px;
+  border-radius:14px;font-weight:700;cursor:pointer;user-select:none;font-size:1.05rem;text-align:center}
+.shoot label:focus-within{outline:3px solid var(--stamp);outline-offset:2px}
+.cam{background:var(--btn);color:var(--btn-ink)}
+.lib{background:var(--paper);color:var(--ink);border:1.5px solid var(--rule)}
+.shoot input{position:absolute;opacity:0;width:1px;height:1px}
+.notice{background:var(--paper);border:1.5px dashed var(--rule);border-radius:12px;padding:12px 14px;color:var(--sub);font-size:.86rem;margin-bottom:16px}
+.notice.err{border-color:var(--stamp);color:var(--stamp)}
+.notice button{font:inherit;margin-left:6px}
+
+/* crop */
+.crop{background:var(--paper);border-radius:14px;padding:12px;margin-bottom:20px;border:1.5px solid var(--rule)}
+.crop p{margin:0 0 8px;font-size:.9rem}
+.stage{position:relative;touch-action:none;user-select:none;-webkit-user-select:none;margin:0 auto;max-width:100%}
+@media (min-width:700px){ .stage{max-width:min(100%, 62vh * var(--ar, 1))} }
+.stage canvas{display:block;width:100%;height:auto;border-radius:6px}
+.box{position:absolute;border:2.5px solid var(--stamp);box-shadow:0 0 0 9999px rgba(0,0,0,.45);border-radius:4px}
+.stagewrap{overflow:hidden;border-radius:6px;padding:16px;background:#000}
+.h{position:absolute;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;background:var(--stamp);border:3px solid #fff;touch-action:none}
+.crop-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.crop-actions button,.btn2{font:inherit;border-radius:10px;padding:10px 14px;cursor:pointer;border:1.5px solid var(--rule);background:var(--paper);color:var(--ink);min-height:44px}
+.primary{background:var(--btn)!important;color:var(--btn-ink)!important;border-color:var(--btn)!important;font-weight:700}
+.progress{height:8px;background:var(--slip);border-radius:4px;overflow:hidden;margin:8px 14px 4px}
+.progress i{display:block;height:100%;background:var(--stamp);width:0;transition:width .2s}
+
+/* slips */
+.slip{background:var(--slip);border-radius:6px 6px 14px 14px;margin-bottom:20px;overflow:hidden;border-top:6px solid var(--rule)}
+.slip.review{border-top-color:var(--stamp)}
+.slip-head{display:flex;gap:12px;padding:14px 14px 10px;align-items:flex-start}
+.thumb{width:64px;height:64px;object-fit:cover;border-radius:8px;flex:none;background:var(--paper);cursor:zoom-in;border:none;padding:0}
+.thumb img{width:100%;height:100%;object-fit:cover;border-radius:8px}
+.meta{flex:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:6px 10px}
+.meta label{font-size:.72rem;color:var(--sub);display:block}
+.totals{padding:10px 14px 0;max-width:640px}
+h2#recordsTitle{border-top:1px solid var(--rule);padding-top:20px}
+.slip.justsaved{outline:3px solid var(--ok);outline-offset:3px;transition:outline-color 2s}
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:10px;font-size:.92rem;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:10;max-width:calc(100vw - 32px)}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@media (prefers-reduced-motion:reduce){#toast{transition:none}}
+.meta input{width:100%;font:inherit;font-size:.92rem;color:var(--ink);background:var(--paper);border:1px solid var(--rule);border-radius:6px;padding:4px 8px}
+.del{flex:none;background:none;border:none;color:var(--sub);font-size:1.3rem;cursor:pointer;padding:2px 6px;border-radius:6px}
+button:focus-visible{outline:3px solid var(--stamp);outline-offset:2px}
+.status{padding:4px 14px 14px;font-size:.92rem;color:var(--sub)}
+.status.err{color:var(--stamp)}
+.tablewrap{overflow-x:auto;background:var(--paper)}
+table{border-collapse:collapse;width:100%;min-width:700px;font-family:"BIZ UDPGothic","Zen Kaku Gothic New",sans-serif;font-size:.88rem}
+th{background:var(--slip);font-weight:700;text-align:left;padding:6px;border-bottom:1.5px solid var(--rule);white-space:nowrap;font-size:.78rem;color:var(--sub)}
+td{border-bottom:1px solid var(--rule);padding:2px 3px}
+td input{width:100%;font:inherit;color:var(--ink);background:transparent;border:1px solid transparent;border-radius:4px;padding:5px 4px}
+td input:focus{border-color:var(--rule);background:var(--bg);outline:none}
+td.num input{text-align:right;font-variant-numeric:tabular-nums}
+td.name{min-width:180px}
+tr.bad td{background:color-mix(in srgb,var(--stamp) 12%,transparent)}
+tr.est td{background:var(--warnbg)}
+td.star{text-align:center;width:36px}
+td.star input{width:auto}
+.rowdel{background:none;border:none;color:var(--sub);cursor:pointer;font-size:1rem;padding:4px}
+.foot{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 16px;padding:10px 14px 14px;font-size:.88rem}
+.foot .sums{font-family:"BIZ UDPGothic",sans-serif;font-variant-numeric:tabular-nums}
+.check-ok{color:var(--ok);font-weight:700}
+.check-ng{color:var(--stamp);font-weight:700}
+.check-warn{color:var(--warn);font-weight:700}
+.addrow{background:none;border:1px solid var(--rule);color:var(--ink);border-radius:8px;padding:4px 10px;font:inherit;font-size:.85rem;cursor:pointer}
+.review-actions{display:flex;flex-wrap:wrap;gap:8px;padding:0 14px 14px;align-items:center}
+.review-actions .hint{font-size:.82rem;color:var(--sub);flex-basis:100%}
+details.raw{padding:0 14px 12px;font-size:.8rem;color:var(--sub)}
+details.raw pre{white-space:pre-wrap;background:var(--paper);padding:8px;border-radius:6px;max-height:220px;overflow:auto;font-size:.75rem}
+.dots::after{content:"";animation:d 1.4s steps(4) infinite}
+@keyframes d{0%{content:""}25%{content:"・"}50%{content:"・・"}75%{content:"・・・"}}
+@media (prefers-reduced-motion:reduce){.dots::after{animation:none;content:"…"}}
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:4px 0 16px}
+.toolbar label{font-size:.85rem;color:var(--sub)}
+.toolbar select{font:inherit;color:var(--ink);background:var(--paper);border:1.5px solid var(--rule);border-radius:10px;padding:8px 10px;min-height:44px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--paper);border-top:1px solid var(--rule);padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px))}
+.bar-in{max-width:1100px;margin:0 auto;display:flex;gap:10px;align-items:center}
+.bar-info{flex:1;font-size:.85rem;color:var(--sub)}
+.export{background:var(--stamp);color:#fff;border:none;border-radius:12px;font:inherit;font-weight:700;padding:12px 18px;font-size:1rem;cursor:pointer}
+.export:disabled{opacity:.4;cursor:default}
+.empty{text-align:center;color:var(--sub);padding:30px 10px;font-size:.92rem}
+.backup{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:.85rem;color:var(--sub);margin-top:30px;padding-top:16px;border-top:1px solid var(--rule)}
+.backup label.btn2{display:inline-flex;align-items:center}
+.backup input{position:absolute;opacity:0;width:1px;height:1px}
+dialog{border:none;border-radius:12px;padding:0;max-width:96vw;max-height:92vh;background:var(--paper)}
+dialog img{display:block;max-width:96vw;max-height:84vh}
+dialog form{text-align:right;padding:6px}
+</style>
+</head>
+<body>
+<main>
+  <h1>納品書 → Excel</h1>
+  <p class="lead">撮っておいた伝票の写真をまとめてアップロードすると、明細を読み取ります。内容を確認して「記録する」を押すと記録が積み重なり、いつでも Excel にまとめて書き出せます。</p>
+
+  <details class="settings" id="settings">
+    <summary>読み取り方法<span id="modeLabel"></span></summary>
+    <div class="row">
+      <label><input type="radio" name="mode" value="gemini"> 高精度（Gemini API）</label>
+      <label><input type="radio" name="mode" value="local"> 簡易（このパソコンの中だけ・精度低め）</label>
+    </div>
+    <div id="geminiBox">
+      <div class="row">
+        <input id="apiKey" type="password" placeholder="Gemini の APIキーを貼り付け（AIza…）" autocomplete="off" spellcheck="false">
+        <button class="btn2" type="button" id="keyShow">表示</button>
+      </div>
+      <div class="row">
+        <label for="modelSel">モデル</label>
+        <select id="modelSel">
+          <option value="gemini-3.8-flash">Gemini 3.8 Flash（おすすめ）</option>
+          <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
+          <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite（速い・回数多め）</option>
+        </select>
+        <button class="btn2 primary" type="button" id="keySave">保存して接続を確認</button>
+        <span class="keymsg" id="keyMsg"></span>
+      </div>
+      <p class="help">APIキーは <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> で Google アカウントから無料で作れます。キーはこのブラウザの中にだけ保存され、このファイルを人に渡してもキーは渡りません。<br>無料枠で使う場合、送った写真は Google のサービス改善に使われることがあります。仕入れ値などを送ってよいかはお店で判断してください（有料設定にすると使われません）。</p>
+    </div>
+  </details>
+
+  <label class="drop" id="drop">
+    <strong>伝票の写真をここにドラッグ</strong>
+    <span>またはクリックして選ぶ（何枚でもまとめて選べます／JPEG・PNG）</span>
+    <input id="libInput" type="file" accept="image/*" multiple>
+  </label>
+  <div id="libNote" class="notice err" hidden></div>
+  <div id="storeNote" class="notice" hidden></div>
+
+  <section id="cropper" class="crop" hidden></section>
+  <h2 id="pendingTitle" hidden>確認待ち（まだ記録されていません）</h2>
+  <div id="pending"></div>
+  <h2 id="recordsTitle">記録した伝票</h2>
+
+  <div class="toolbar" id="toolbar" hidden>
+    <label for="monthSel">表示する月</label>
+    <select id="monthSel"></select>
+  </div>
+  <div id="list"></div>
+  <div id="empty" class="empty">まだ記録がありません。<br>伝票をまっすぐ上から、明るい場所で、画面いっぱいに撮った写真ほど正確に読み取れます。</div>
+
+  <div class="backup">
+    <span style="flex-basis:100%">記録はこのパソコン（ブラウザ）の中だけに保存されています。機種変更や万一に備えて、ときどきバックアップを保存してください。</span>
+    <button class="btn2" id="backupBtn" type="button">バックアップを保存</button>
+    <label class="btn2">バックアップから戻す<input id="restoreInput" type="file" accept=".json,application/json"></label>
+  </div>
+</main>
+
+<div class="bar">
+  <div class="bar-in">
+    <div class="bar-info" id="barInfo">記録 0 枚</div>
+    <button class="export" id="exportBtn" type="button" disabled>Excel に書き出す</button>
+  </div>
+</div>
+
+<dialog id="photoDlg"><img id="photoBig" alt="伝票の写真"><form method="dialog"><button class="btn2">閉じる</button></form></dialog>
+<datalist id="productList"></datalist>
+<datalist id="supplierList"></datalist>
+
+<script>
+// ---- slip text parser (shared with the page) ----
+function toHalf(s){
+  return s.replace(/[０-９Ａ-Ｚａ-ｚ．，／：]/g, c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/　/g," ");
+}
+function parseNumToken(tok){
+  let t = tok.replace(/[^\d.,]/g,"");
+  if(!/\d/.test(t)) return null;
+  t = t.replace(/^[.,]+|[.,]+$/g,"");
+  t = t.replace(/([.,]00)\d$/,"$1");                 // stray border char after ".00"
+  let dec = 0;
+  const m = t.match(/^(.*\d)[.,](\d{1,2})$/);         // decimal part (1-2 digits)
+  if(m){ t = m[1]; dec = Number("0."+m[2]); }
+  if(/[.,]/.test(t) && !/^\d{1,3}([.,]\d{3})+$/.test(t)){
+    if(!dec && /^\d{1,3}([.,]\d{3})+\d$/.test(t)) t = t.slice(0,-1);   // one stray char after the last group
+    else return null;
+  }   // malformed grouping
+  const v = Number(t.replace(/[.,]/g,"")) + dec;
+  return isFinite(v) ? v : null;
+}
+function numsOf(line){
+  const s = toHalf(line).replace(/(\b\d{1,3})[.,]\s+(\d{3})(?=[.,\s]|$)/g,"$1,$2").replace(/(\d)[.,]\s+(\d{2})(?!\d)/g,"$1.$2");
+  const out = [];
+  const re = /\d[\d.,]*/g; let m;
+  while((m = re.exec(s))){ const v = parseNumToken(m[0]); if(v!==null) out.push({v, raw:m[0], at:m.index}); }
+  return out;
+}
+function findTriple(nums){
+  let best = null;
+  for(let i=0;i<nums.length;i++) for(let j=i+1;j<nums.length;j++) for(let k=j+1;k<nums.length;k++){
+    const q=nums[i].v, p=nums[j].v, a=nums[k].v;
+    if(q<=0||p<=0||a<=0||q>9999) continue;
+    if(Math.abs(q*p-a) <= 1 && a>=100 && p>=10){ if(!best || k>best.k || (k===best.k && j>best.j)) best={i,j,k,q,p,a}; }
+  }
+  return best;
+}
+const SKIP = /TEL|FAX|〒|登録|T\d{10,}|\d{2,4}-\d{2,4}-\d{3,4}|\(\d{2,4}\)\d/i;
+// fallback: amount is the last number; qty looks like "3.00" (or small) and amount/qty gives a whole price, or a price divides the amount
+function findPair(nums){
+  if(nums.length<2) return null;
+  const a = nums[nums.length-1].v; if(a<100) return null;
+  for(let i=nums.length-2;i>=0;i--){
+    const n = nums[i];
+    if(/[.,]00$/.test(n.raw.replace(/[.,]+$/,"")) && n.v>=1 && n.v<=999){
+      // qty-like ("3.00") if a price-like number is not the one dividing
+      const p = a/n.v;
+      if(n.v<=99 && Number.isInteger(p) && p>=10) return {q:n.v, p, a};
+      if(n.v>=10 && Number.isInteger(a/n.v) && a/n.v<=999) return {q:a/n.v, p:n.v, a};
+    }
+  }
+  return null;
+}
+function parseSlipText(text){
+  const lines = text.split(/\n/).map(l=>l.trim()).filter(Boolean);
+  const all = toHalf(text);
+  // date
+  let date = "";
+  let m = all.match(/(?:令和|R|令|合|今|⑦)\s*0?(\d{1,2})\s*[.\/年]\s*(\d{1,2})\s*[.\/月]\s*(\d{1,2})/);
+  if(m) date = `${2018+Number(m[1])}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`;
+  if(!date){ m = all.match(/(20\d\d)\s*[.\/年-]\s*(\d{1,2})\s*[.\/月-]\s*(\d{1,2})/); if(m) date = `${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`; }
+  if(!date){ m = all.match(/(?:^|[^\d])0?([1-9])\s*\.\s*(\d{1,2})\s*\.\s*(\d{1,2})\s*\|/); if(m && Number(m[1])>=5 && Number(m[1])<=20) date = `${2018+Number(m[1])}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`; }
+  // slip number: 6-10 digit number on the date line, or after 伝票
+  let slip_no = "";
+  const dl = lines.find(l=>/\d{1,2}\s*\.\s*\d{1,2}\s*\.\s*\d{1,2}/.test(toHalf(l)));
+  if(dl){ const n = toHalf(dl).match(/\b(\d{6,10})\b/); if(n) slip_no = n[1]; }
+  if(!slip_no){ m = all.match(/伝票\D{0,6}(\d{5,10})/); if(m) slip_no = m[1]; }
+  // supplier
+  let supplier = "";
+  m = all.match(/(株式会社\s*\S+|\S+\s*株式会社|有限会社\s*\S+|\(株\)\s*\S+)/); if(m) supplier = m[1].replace(/\s+/g,"");
+  // items
+  const items = []; const used = new Set();
+  const codeOf = idx => {
+    for(const d of [0,1,-1,2]){
+      const L = lines[idx+d]; if(L===undefined) continue;
+      const c = toHalf(L).match(/(?:^|[^\d])(\d{7,8})(?!\d)/); if(c && !used.has("c"+(idx+d))){ used.add("c"+(idx+d)); return c[1]; }
+    }
+    return "";
+  };
+  const textOf = (L)=>toHalf(L).replace(/\d[\d.,]*/g," ").replace(/[|_\-=~"'`!;:\[\]{}()<>【】『』「」ー一]+/g," ").replace(/\s+/g," ").trim();
+  for(let idx=0; idx<lines.length; idx++){
+    if(used.has(idx)) continue;
+    if(SKIP.test(toHalf(lines[idx]))) continue;
+    let nums = numsOf(lines[idx]);
+    let t = findTriple(nums), span = 1, estimated = false;
+    if(!t && idx+1<lines.length && !SKIP.test(toHalf(lines[idx+1]))){ const n2 = nums.concat(numsOf(lines[idx+1])); const t2 = findTriple(n2); if(t2 && t2.k>=nums.length){ t=t2; span=2; } }
+    if(!t){ t = findPair(nums); estimated = !!t; }
+    if(!t) continue;
+    for(let s=0;s<span;s++) used.add(idx+s);
+    const star = /★|☆|\*/.test(lines[idx]);
+    items.push({ code: codeOf(idx), maker:"", name: textOf(lines[idx]).slice(0,40), qty:t.q, unit:"", unit_price:t.p, amount:t.a, reduced_tax: star, estimated });
+  }
+  return { supplier, date, slip_no, customer:"", items, subtotal:null, tax:null, total:null };
+}
+
+</script>
+<script>
+(function(){
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+  const num = v => { if(v===null||v===undefined||v==="") return null; const n = Number(String(v).replace(/[,，円¥\s]/g,"")); return isFinite(n)?n:null; };
+  const fmt = n => n===null||n===undefined||n==="" ? "" : Number(n).toLocaleString("ja-JP");
+  const monthOf = r => /^\d{4}-\d{2}/.test(r.data.date||"") ? r.data.date.slice(0,7) : "日付不明";
+  function el(tag, attrs, ...kids){
+    const e = document.createElement(tag);
+    for(const [k,v] of Object.entries(attrs||{})){
+      if(k==="class") e.className=v; else if(k.startsWith("on")) e.addEventListener(k.slice(2),v);
+      else if(k==="value") e.value=v??""; else if(k==="checked") e.checked=v; else if(v!==null&&v!==undefined) e.setAttribute(k,v);
+    }
+    for(const k of kids){ if(k!==null&&k!==undefined&&k!==false) e.append(k); }
+    return e;
+  }
+
+  // ================= storage (IndexedDB on this device) =================
+  let dbp = null;
+  function openDB(){
+    if(dbp) return dbp;
+    dbp = new Promise((res,rej)=>{
+      const r = indexedDB.open("nouhinsho", 1);
+      r.onupgradeneeded = ()=>{ const d=r.result; d.createObjectStore("slips",{keyPath:"id"}); d.createObjectStore("products",{keyPath:"key"}); };
+      r.onsuccess = ()=>res(r.result); r.onerror = ()=>rej(r.error);
+    });
+    return dbp;
+  }
+  async function tx(store, mode, fn){
+    const d = await openDB();
+    return new Promise((res,rej)=>{ const t=d.transaction(store,mode); const s=t.objectStore(store); const out=fn(s); t.oncomplete=()=>res(out&&out.result!==undefined?out.result:out); t.onerror=()=>rej(t.error); t.onabort=()=>rej(t.error); });
+  }
+  const DB = {
+    all: store => tx(store,"readonly",s=>s.getAll()),
+    put: (store,v) => tx(store,"readwrite",s=>s.put(v)),
+    del: (store,k) => tx(store,"readwrite",s=>s.delete(k)),
+    clear: store => tx(store,"readwrite",s=>s.clear()),
+  };
+
+  let records = [];       // {id, data, photo, rawText, createdAt}
+  let products = [];      // {key, supplier, code, name, maker, unit, unit_price, updatedAt}
+  let pending = [];       // {id, status, photo, data, rawText, progress, error}
+  let month = "__latest", shownMonth = "__all";
+
+  async function loadAll(){
+    try{ records = await DB.all("slips"); products = await DB.all("products"); }
+    catch(e){ showStore("このブラウザでは記録を保存できません（プライベートブラウズでは保存できません）。", true); }
+    refreshLists(); render();
+  }
+  function showStore(msg, err){ const n=$("storeNote"); n.hidden=false; n.className="notice"+(err?" err":""); n.textContent=msg; }
+
+  // ================= product memory =================
+  const normCode = c => String(c||"").replace(/\D/g,"");
+  function editDist1(a,b){
+    if(a===b) return true; if(Math.abs(a.length-b.length)>1) return false;
+    let i=0,j=0,d=0;
+    while(i<a.length && j<b.length){ if(a[i]===b[j]){i++;j++;continue;} if(++d>1) return false;
+      if(a.length>b.length) i++; else if(b.length>a.length) j++; else {i++;j++;} }
+    return d + (a.length-i) + (b.length-j) <= 1;
+  }
+  function lookupProduct(item, supplier){
+    const code = normCode(item.code);
+    if(code.length>=5){
+      const exact = products.find(p=>p.code===code); if(exact) return {p:exact, how:"code"};
+      const near = products.filter(p=>p.code && editDist1(p.code, code));
+      if(near.length===1) return {p:near[0], how:"near"};
+    }
+    if(item.unit_price){
+      const same = products.filter(p=>p.unit_price===item.unit_price && (!supplier || !p.supplier || p.supplier===supplier));
+      if(same.length===1) return {p:same[0], how:"price"};
+    }
+    return null;
+  }
+  function applyMemory(data){
+    for(const it of data.items){
+      const hit = lookupProduct(it, data.supplier);
+      if(!hit) continue;
+      const p = hit.p;
+      it.name = p.name; it.maker = p.maker||""; it.unit = it.unit || p.unit || ""; it.code = p.code || it.code;
+      if(p.reduced_tax!==undefined) it.reduced_tax = p.reduced_tax;
+      if(hit.how!=="code") it.estimated = true;
+      if(p.supplier && (hit.how==='code' || !data.supplier)) data.supplier = p.supplier;   // remembered name beats OCR guess
+    }
+  }
+  async function learn(data){
+    const now = new Date().toISOString();
+    for(const it of data.items){
+      if(!it.name) continue;
+      const code = normCode(it.code);
+      const key = code ? "c:"+code : "n:"+(data.supplier||"")+":"+it.name;
+      const rec = { key, supplier:data.supplier||"", code, name:it.name, maker:it.maker||"", unit:it.unit||"", unit_price:it.unit_price, reduced_tax:!!it.reduced_tax, updatedAt:now };
+      try{ await DB.put("products", rec); }catch(e){}
+      const i = products.findIndex(p=>p.key===key); if(i>=0) products[i]=rec; else products.push(rec);
+    }
+    refreshLists();
+  }
+  function refreshLists(){
+    const pl = $("productList"); pl.replaceChildren();
+    for(const p of products.slice().sort((a,b)=>a.name.localeCompare(b.name,"ja"))) pl.append(el("option",{value:p.name}));
+    const sl = $("supplierList"); sl.replaceChildren();
+    const sups = new Set([...records.map(r=>r.data.supplier), ...products.map(p=>p.supplier)].filter(Boolean));
+    for(const s of sups) sl.append(el("option",{value:s}));
+  }
+
+  // ================= image & crop =================
+  // Try several ways to decode: some viewers block blob: URLs, some lack createImageBitmap.
+  function imgFromSrc(src){
+    return new Promise((res,rej)=>{ const img=new Image(); const t=setTimeout(()=>rej(new Error("timeout")),20000);
+      img.onload=()=>{clearTimeout(t); res(img);}; img.onerror=()=>{clearTimeout(t); rej(new Error("decode"));}; img.src=src; });
+  }
+  function readAsDataURL(file){
+    return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>rej(r.error||new Error("read")); r.readAsDataURL(file); });
+  }
+  function sniff(bytes){
+    const h=[...bytes.slice(0,12)].map(b=>b.toString(16).padStart(2,"0")).join("");
+    if(h.startsWith("ffd8ff")) return "JPEG";
+    if(h.startsWith("89504e47")) return "PNG";
+    if(h.startsWith("52494646") && h.slice(16,24)==="57454250") return "WebP";
+    if(h.slice(8,16)==="66747970"){ const brand=String.fromCharCode(...bytes.slice(8,12)); return /hei|hev|mif/.test(brand)?"HEIC":"MP4/HEIF系"; }
+    if(h.startsWith("25504446")) return "PDF";
+    return "不明";
+  }
+  async function loadImage(file){
+    const errs = [];
+    if(window.createImageBitmap){
+      try{ const bmp = await createImageBitmap(file, {imageOrientation:"from-image"}); return {img:bmp, url:null}; }catch(e){ errs.push("bitmap"); }
+    }
+    let url = null;
+    try{ url = URL.createObjectURL(file); const img = await imgFromSrc(url); return {img, url}; }
+    catch(e){ errs.push("blob"); if(url) URL.revokeObjectURL(url); }
+    try{ const img = await imgFromSrc(await readAsDataURL(file)); return {img, url:null}; }
+    catch(e){ errs.push("dataurl"); }
+    let kind = "不明";
+    try{ kind = sniff(new Uint8Array(await file.slice(0,16).arrayBuffer())); }catch(e){}
+    const err = new Error("img"); err.kind = kind; err.size = file.size; err.tried = errs.join(","); throw err;
+  }
+  const W = img => img.naturalWidth || img.width, H = img => img.naturalHeight || img.height;
+  function rotatedCanvas(img, rot, maxSide){
+    const s = Math.min(1, maxSide/Math.max(W(img), H(img)));
+    const w = Math.round(W(img)*s), h = Math.round(H(img)*s);
+    const c = document.createElement("canvas");
+    const swap = rot%180!==0; c.width = swap?h:w; c.height = swap?w:h;
+    const x = c.getContext("2d"); x.translate(c.width/2,c.height/2); x.rotate(rot*Math.PI/180); x.drawImage(img,-w/2,-h/2,w,h);
+    return c;
+  }
+  let crop = null;   // {img,url,rot,box:{x0,y0,x1,y1} in 0..1, name}
+  let queue = [], queueTotal = 0, queueDone = 0;
+  function addFiles(files){
+    const imgs = Array.from(files||[]).filter(f=>/^image\//.test(f.type) || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name));
+    if(!imgs.length) return;
+    imgs.sort((a,b)=>a.name.localeCompare(b.name,"ja",{numeric:true}));
+    if(useGemini()){ imgs.forEach(readWithGemini); return; }
+    if(!crop && !queue.length){ queueTotal = 0; queueDone = 0; }
+    queue.push(...imgs); queueTotal += imgs.length;
+    if(!crop) nextCrop();
+    else drawCrop();
+  }
+  async function nextCrop(){
+    if(crop){ if(crop.url) URL.revokeObjectURL(crop.url); crop = null; }
+    while(queue.length){
+      const file = queue.shift(); queueDone++;
+      try{
+        const loaded = await loadImage(file);
+        crop = { ...loaded, rot:0, box:{x0:.03,y0:.03,x1:.97,y1:.97}, name:file.name };
+        drawCrop();
+        $("cropper").scrollIntoView({behavior:"smooth", block:"start"});
+        return;
+      }catch(e){
+        const heic = /\.(heic|heif)$/i.test(file.name) || /heic|heif/i.test(file.type) || e.kind==="HEIC";
+        pending.push({ id:uid(), status:"error", error: heic
+          ? `「${file.name}」はiPhoneのHEIC形式のため、このブラウザでは開けません。iPhoneの「設定 → カメラ → フォーマット → 互換性優先」で撮るか、JPEGに変換してから選んでください。`
+          : file.size===0 ? `「${file.name}」は中身が空（0バイト）でした。写真を保存し直してから選んでください。`
+          : `「${file.name}」は画像として開けませんでした（種類: ${e.kind||"不明"}、${Math.round((file.size||0)/1024)}KB、${e.tried||""}）。Chrome か Edge でこのファイルを直接開いて試してください。` });
+        renderPending();
+      }
+    }
+    $("cropper").hidden = true; $("cropper").replaceChildren();
+  }
+  function drawCrop(){
+    const sec = $("cropper"); sec.hidden = false; sec.replaceChildren();
+    const view = rotatedCanvas(crop.img, crop.rot, 1400);
+    sec.style.setProperty("--ar", (view.width/view.height).toFixed(3));
+    const stage = el("div",{class:"stage"}); stage.append(view);
+    const box = el("div",{class:"box"});
+    const hs = ["tl","tr","bl","br"].map(k=>el("div",{class:"h","data-k":k,"aria-hidden":"true"}));
+    stage.append(box, ...hs);
+    const wrap = el("div",{class:"stagewrap"}, stage);
+    sec.append(el("p",{class:"queue"}, `${queueDone} / ${queueTotal} 枚目　${crop.name||""}` + (queue.length?`（あと ${queue.length} 枚）`:"")));
+    sec.append(el("p",null,"赤い枠の角を動かして、伝票の明細（品名〜金額の表）と日付が入るように囲んでください。下に重なった別の伝票や机は枠の外に。"), wrap);
+    const place = ()=>{
+      const b = crop.box;
+      Object.assign(box.style,{left:b.x0*100+"%",top:b.y0*100+"%",width:(b.x1-b.x0)*100+"%",height:(b.y1-b.y0)*100+"%"});
+      const pos = {tl:[b.x0,b.y0],tr:[b.x1,b.y0],bl:[b.x0,b.y1],br:[b.x1,b.y1]};
+      for(const h of hs){ const [x,y]=pos[h.dataset.k]; h.style.left=x*100+"%"; h.style.top=y*100+"%"; }
+    };
+    place();
+    let drag = null;
+    stage.addEventListener("pointerdown", e=>{
+      const r = stage.getBoundingClientRect();
+      const px=(e.clientX-r.left)/r.width, py=(e.clientY-r.top)/r.height, b=crop.box;
+      const corners = {tl:[b.x0,b.y0],tr:[b.x1,b.y0],bl:[b.x0,b.y1],br:[b.x1,b.y1]};
+      let best=null, bd=1e9;
+      for(const [k,[x,y]] of Object.entries(corners)){ const d=Math.hypot((x-px)*r.width,(y-py)*r.height); if(d<bd){bd=d;best=k;} }
+      drag = bd<60 ? {k:best} : (px>b.x0&&px<b.x1&&py>b.y0&&py<b.y1 ? {k:"move",sx:px,sy:py,b0:{...b}} : null);
+      if(drag){ stage.setPointerCapture(e.pointerId); e.preventDefault(); }
+    });
+    stage.addEventListener("pointermove", e=>{
+      if(!drag) return;
+      const r = stage.getBoundingClientRect();
+      const px=Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)), py=Math.min(1,Math.max(0,(e.clientY-r.top)/r.height));
+      const b = crop.box, m=.05;
+      if(drag.k==="move"){
+        const w=drag.b0.x1-drag.b0.x0, h=drag.b0.y1-drag.b0.y0;
+        const x0=Math.min(1-w,Math.max(0,drag.b0.x0+px-drag.sx)), y0=Math.min(1-h,Math.max(0,drag.b0.y0+py-drag.sy));
+        Object.assign(b,{x0,y0,x1:x0+w,y1:y0+h});
+      }else{
+        if(drag.k[1]==="l") b.x0=Math.min(px,b.x1-m); else b.x1=Math.max(px,b.x0+m);
+        if(drag.k[0]==="t") b.y0=Math.min(py,b.y1-m); else b.y1=Math.max(py,b.y0+m);
+      }
+      place();
+    });
+    const end = ()=>{ drag=null; };
+    stage.addEventListener("pointerup", end); stage.addEventListener("pointercancel", end);
+    sec.append(el("div",{class:"crop-actions"},
+      el("button",{type:"button",class:"primary",onclick:runRead}, queue.length?"この範囲を読み取って次へ":"この範囲を読み取る"),
+      el("button",{type:"button",onclick:()=>{ crop.rot=(crop.rot+90)%360; crop.box={x0:.03,y0:.03,x1:.97,y1:.97}; drawCrop(); }},"↻ 90°回転"),
+      el("button",{type:"button",onclick:()=>nextCrop()}, "この写真を飛ばす"),
+      queue.length ? el("button",{type:"button",onclick:cancelCrop},"残りもすべてやめる") : null));
+  }
+  function cancelCrop(){ queue=[]; if(crop && crop.url) URL.revokeObjectURL(crop.url); crop=null; $("cropper").hidden=true; $("cropper").replaceChildren(); }
+
+  function cropped(maxW, src){
+    src = src || crop;
+    const full = rotatedCanvas(src.img, src.rot, 4000);
+    const b = src.box;
+    const sx=Math.round(b.x0*full.width), sy=Math.round(b.y0*full.height), sw=Math.round((b.x1-b.x0)*full.width), sh=Math.round((b.y1-b.y0)*full.height);
+    // OCR wants text big: upscale small crops, cap total pixels for phone memory
+    let s = Math.min(maxW/sw, 3);
+    if(sw*s*sh*s > 9e6) s = Math.sqrt(9e6/(sw*sh));
+    const c = document.createElement("canvas"); c.width=Math.round(sw*s); c.height=Math.round(sh*s);
+    const x = c.getContext("2d"); x.imageSmoothingQuality="high"; x.drawImage(full,sx,sy,sw,sh,0,0,c.width,c.height);
+    return c;
+  }
+  function enhance(c){
+    const x = c.getContext("2d"); const im = x.getImageData(0,0,c.width,c.height); const d = im.data;
+    const hist = new Uint32Array(256); const g = new Uint8ClampedArray(d.length/4);
+    for(let i=0,j=0;i<d.length;i+=4,j++){ const v = (d[i]*0.3+d[i+1]*0.59+d[i+2]*0.11)|0; g[j]=v; hist[v]++; }
+    const n=g.length; let lo=0, hi=255, acc=0;
+    for(let v=0;v<256;v++){ acc+=hist[v]; if(acc>n*0.02){lo=v;break;} }
+    acc=0; for(let v=255;v>=0;v--){ acc+=hist[v]; if(acc>n*0.02){hi=v;break;} }
+    const sc = 255/Math.max(1,hi-lo);
+    for(let i=0,j=0;i<d.length;i+=4,j++){ const v=Math.max(0,Math.min(255,(g[j]-lo)*sc)); d[i]=d[i+1]=d[i+2]=v; }
+    x.putImageData(im,0,0); return c;
+  }
+  function photoFor(maxSide, src){ const c = cropped(maxSide, src); return c.toDataURL("image/jpeg",.72); }
+
+  // ================= OCR =================
+  let worker = null, workerP = null, curPending = null;
+  function getWorker(){
+    if(workerP) return workerP;
+    if(!window.Tesseract) return Promise.reject(new Error("noengine"));
+    workerP = Tesseract.createWorker("jpn", 1, {
+      langPath:"https://cdn.jsdelivr.net/npm/@tesseract.js-data/jpn/4.0.0_best_int",
+      logger: m=>{
+        if(!curPending) return;
+        if(m.status==="recognizing text"){ curPending.progress = 0.15 + m.progress*0.85; curPending.label="読み取り中"; }
+        else if(/loading|initializ/.test(m.status)){ curPending.progress = Math.min(.15, (m.progress||0)*.15); curPending.label = "読み取りの準備中（初回は約3MBのデータを取得します）"; }
+        updateProgress(curPending);
+      }
+    }).then(async w=>{ await w.setParameters({tessedit_pageseg_mode:"6", preserve_interword_spaces:"1"}); worker=w; return w; })
+      .catch(e=>{ workerP=null; throw e; });
+    return workerP;
+  }
+  let busy = Promise.resolve();
+  async function runRead(){
+    if(!crop) return;
+    const p = { id:uid(), status:"reading", progress:0, label:"準備中" };
+    let canvas;
+    try{ p.photo = photoFor(1400); canvas = enhance(cropped(2400)); }
+    catch(e){ showStore("写真の処理に失敗しました。範囲を小さくするか、撮り直してください。", true); return; }
+    pending.push(p); renderPending();
+    nextCrop();
+    busy = busy.then(async()=>{
+      curPending = p;
+      try{
+        const w = await getWorker();
+        const r = await w.recognize(canvas);
+        p.rawText = r.data.text || "";
+        const data = parseSlipText(p.rawText);
+        data.items.forEach(it=>{ it.code = it.code||""; });
+        applyMemory(data);
+        p.data = data; p.status = "review";
+      }catch(e){
+        p.status = "error";
+        p.error = (e && e.message==="noengine") || !navigator.onLine
+          ? "読み取りの準備ができませんでした。初回だけインターネット接続が必要です。電波の良い場所でもう一度撮ってください。"
+          : "読み取りに失敗しました。範囲を狭くするか、撮り直してください。";
+      }
+      curPending = null; renderPending();
+    });
+  }
+  // ================= Gemini =================
+  const SKEY = "nouhinsho-gemini";
+  let settings = { mode:"gemini", key:"", model:"gemini-3.8-flash" };
+  try{ Object.assign(settings, JSON.parse(localStorage.getItem(SKEY)||"{}")); }catch(e){}
+  function saveSettings(){ try{ localStorage.setItem(SKEY, JSON.stringify(settings)); }catch(e){} }
+  const useGemini = () => settings.mode==="gemini" && !!settings.key;
+  const MODELS = ["gemini-3.8-flash","gemini-3.5-flash","gemini-3.5-flash-lite"];
+  const PROMPT = `添付画像は日本の納品書（仕入伝票）の写真です。写真の中で一番手前にあり全体が見えている納品書1枚だけを読み取ってください。下に重なって一部しか見えていない別の伝票は無視してください。
+次の形のJSONオブジェクトだけを返してください:
+{"supplier":"発行元の会社名","date":"YYYY-MM-DD","slip_no":"伝票番号","items":[{"code":"商品コード","maker":"メーカー名","name":"品名・容量","qty":3,"unit":"カン","unit_price":1290,"amount":3870,"reduced_tax":true}],"subtotal":28675,"tax":2294,"total":30969,"notes":""}
+ルール:
+- 日付が和暦なら西暦に変換（令和N年 = 2018+N 年。例: 令和08.09.18 → 2026-09-18）。
+- 数値はカンマ無しの数値。小数点以下が .00 なら整数に。読めない値は null。
+- 品名・コード・数量の行が上下にずれて印字されていることがあります。「数量 × 単価 = 金額」が成り立つように各行を正しく対応させてください。
+- reduced_tax は ★ など軽減税率の印が付いていれば true。
+- maker は品名の上の行に書かれたメーカー名やブランド名（無ければ空文字）。
+- supplier は納品書を発行した会社（宛先のお店ではない）。
+- 合計欄は伝票の下部や右下にあることが多いです。subtotal は税抜の合計金額、tax は消費税額、total は税込の合計金額（請求額）。
+- 伝票に書かれている数字をそのまま入れ、書かれていない項目は計算せず null にする。合計が1つしか無く税抜か税込か判断できない場合は total に入れて notes にその旨を書く。
+- 合計欄の数字が明細の金額の合計と合わない場合も、書かれている数字のまま入れて notes に書く。
+- 自信のない箇所があれば notes に短く日本語で書く（無ければ空文字）。`;
+  const sleep = ms => new Promise(r=>setTimeout(r,ms));
+  function parseJsonLoose(t){
+    try{ return JSON.parse(t); }catch(e){}
+    const f = t.match(/```(?:json)?\s*([\s\S]*?)```/); if(f){ try{ return JSON.parse(f[1]); }catch(e){} }
+    const a = t.indexOf("{"), b = t.lastIndexOf("}"); if(a>=0&&b>a){ try{ return JSON.parse(t.slice(a,b+1)); }catch(e){} }
+    return null;
+  }
+  async function callGemini(b64, onWait){
+    const order = [settings.model, ...MODELS.filter(m=>m!==settings.model)];
+    let lastErr = null;
+    for(const model of order){
+      for(let attempt=0; attempt<3; attempt++){
+        let res, j = null;
+        try{
+          res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(settings.key)}`, {
+            method:"POST", headers:{"Content-Type":"application/json"},
+            body: JSON.stringify({ contents:[{ parts:[{text:PROMPT},{inline_data:{mime_type:"image/jpeg",data:b64}}] }],
+              generationConfig:{ response_mime_type:"application/json", temperature:0 } })
+          });
+          j = await res.json().catch(()=>null);
+        }catch(e){ throw {kind:"network"}; }   // fetch itself failed: blocked page, CORS or offline
+        if(res.ok){
+          const parts = (j && j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
+          const text = parts.filter(p=>!p.thought).map(p=>p.text||"").join("");
+          if(!text) throw {kind:"empty", reason: j && j.candidates && j.candidates[0] && j.candidates[0].finishReason};
+          return {text, model};
+        }
+        const msg = (j && j.error && j.error.message) || "";
+        if(res.status===404 || /not found|not supported/i.test(msg)){ lastErr = {kind:"model", msg}; break; }   // try next model
+        if(res.status===429 || res.status>=500){
+          // overloaded or out of quota: wait a little, then move on to the next model (quotas are per model)
+          lastErr = {kind: res.status===429?"quota":"busy", status:res.status, msg, model};
+          if(attempt<1){ onWait && onWait(attempt, model); await sleep(res.status===429 ? 15000 : 5000); continue; }
+          onWait && onWait(-1, model);
+          break;
+        }
+        if(res.status===400 && /api key/i.test(msg)) throw {kind:"key", msg};
+        if(res.status===401 || res.status===403) throw {kind:"key", msg};
+        throw {kind:"other", status:res.status, msg};
+      }
+    }
+    throw lastErr || {kind:"model"};
+  }
+  let gbusy = Promise.resolve();
+  async function readWithGemini(file){
+    const p = { id:uid(), status:"reading", progress:.1, label:`読み込み中（${file.name}）` };
+    pending.push(p); renderPending();
+    let b64;
+    try{
+      const loaded = await loadImage(file);
+      const src = { img:loaded.img, rot:0, box:{x0:0,y0:0,x1:1,y1:1} };
+      p.photo = photoFor(1400, src);
+      b64 = cropped(2000, src).toDataURL("image/jpeg",.85).split(",")[1];
+      if(loaded.url) URL.revokeObjectURL(loaded.url);
+    }catch(e){
+      const heic = /\.(heic|heif)$/i.test(file.name) || /heic|heif/i.test(file.type) || (e && e.kind==="HEIC");
+      p.status="error";
+      p.error = heic ? `「${file.name}」はiPhoneのHEIC形式のため開けません。iPhoneの「設定 → カメラ → フォーマット → 互換性優先」で撮るか、JPEGに変換してから選んでください。`
+        : `「${file.name}」は画像として開けませんでした（種類: ${(e&&e.kind)||"不明"}）。`;
+      renderPending(); return;
+    }
+    p.label = "順番待ち"; p.progress=.2; updateProgress(p);
+    gbusy = gbusy.then(async()=>{
+      p.label = `Gemini で読み取り中（${file.name}）`; p.progress=.5; updateProgress(p);
+      try{
+        const r = await callGemini(b64, (n, model)=>{
+          p.label = n<0 ? `${model} が使えないため、別のモデルで試しています` : `${model} が混み合っているため少し待っています`;
+          updateProgress(p); });
+        const raw = parseJsonLoose(r.text);
+        if(!raw || !Array.isArray(raw.items)) throw {kind:"parse"};
+        const data = {
+          supplier:String(raw.supplier||""), date:String(raw.date||""), slip_no:String(raw.slip_no||""), customer:"",
+          items: raw.items.map(it=>({ code:String(it.code??""), maker:String(it.maker??""), name:String(it.name??""),
+            qty:num(it.qty), unit:String(it.unit??""), unit_price:num(it.unit_price), amount:num(it.amount), reduced_tax:!!it.reduced_tax })),
+          subtotal:num(raw.subtotal), tax:num(raw.tax), total:num(raw.total),
+        };
+        // fill gaps from memory only where Gemini left a name empty
+        for(const it of data.items){ if(!it.name){ const h = lookupProduct(it, data.supplier); if(h){ it.name=h.p.name; it.maker=it.maker||h.p.maker; it.estimated=true; } } }
+        p.data = data; p.rawText = ""; p.notes = String(raw.notes||""); p.status = "review"; p.engine = r.model;
+      }catch(e){
+        p.status="error";
+        const k = e && e.kind;
+        p.error = k==="key" ? "APIキーが正しくないか、使えない状態です。「読み取り方法」でキーを確認してください。"
+          : k==="quota" ? `どのモデルも利用回数の上限に達しました（${(e.msg||"").slice(0,120)}）。無料枠なら翌日まで待ってから「もう一度読み取る」を押してください。`
+          : k==="busy" ? `Google 側が混み合っていて、どのモデルでも読み取れませんでした（${e.status||""} ${(e.msg||"").slice(0,120)}）。数分おいて「もう一度読み取る」を押してください。`
+          : k==="network" ? whyBlocked()
+          : k==="model" ? "選んだモデルが使えませんでした。「読み取り方法」で別のモデルを選んでください。"
+          : k==="empty" ? "Gemini から答えが返りませんでした。写真を撮り直すか、もう一度入れてください。"
+          : k==="parse" ? "伝票として読み取れませんでした。伝票全体が写った写真で試してください。"
+          : `読み取りに失敗しました（${(e&&e.status)||""} ${(e&&e.msg)||""}）。`;
+        p.retryFile = file;
+      }
+      renderPending();
+    });
+  }
+  // Explain a failed fetch in terms the person can act on.
+  function whyBlocked(){
+    let framed = false; try{ framed = window.top !== window.self; }catch(e){ framed = true; }
+    const where = location.protocol==="file:" ? "file" : location.hostname || "?";
+    if(!navigator.onLine) return "インターネットにつながっていません。接続してからもう一度押してください。";
+    if(framed || (location.protocol!=="file:" && !/^(localhost|127\.)/.test(location.hostname) && /claude|anthropic|usercontent/i.test(location.hostname)))
+      return "いまは Claude の画面の中でこのファイルを開いているため、外部（Google）に接続できません。index.html をダウンロードして、Chrome か Edge で直接開いてください。";
+    return `Google に接続できませんでした（開き方: ${where}${framed?"・埋め込み":""}）。学校や会社のネットワークだと Google の API が止められていることがあります。スマホのテザリングなど別の回線で試すか、ブラウザの拡張機能（広告ブロック等）を止めて試してください。`;
+  }
+  function initSettings(){
+    const radios = document.querySelectorAll('input[name="mode"]');
+    const sync = ()=>{
+      radios.forEach(r=>r.checked = r.value===settings.mode);
+      $("geminiBox").hidden = settings.mode!=="gemini";
+      $("apiKey").value = settings.key || "";
+      $("modelSel").value = settings.model;
+      $("modeLabel").textContent = settings.mode==="gemini"
+        ? (settings.key ? `：高精度（${settings.model}）` : "：APIキーを設定してください")
+        : "：簡易（このパソコンの中だけ）";
+    };
+    radios.forEach(r=>r.addEventListener("change", ()=>{ settings.mode = r.value; saveSettings(); sync(); }));
+    $("modelSel").addEventListener("change", e=>{ settings.model = e.target.value; saveSettings(); sync(); });
+    $("keyShow").addEventListener("click", ()=>{ const i=$("apiKey"); i.type = i.type==="password"?"text":"password"; $("keyShow").textContent = i.type==="password"?"表示":"隠す"; });
+    $("keySave").addEventListener("click", async()=>{
+      const key = $("apiKey").value.trim(); const msg = $("keyMsg");
+      if(!key){ settings.key=""; saveSettings(); sync(); msg.className="keymsg ng"; msg.textContent="キーを消しました"; return; }
+      msg.className="keymsg"; msg.textContent="確認中…";
+      try{
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${settings.model}?key=${encodeURIComponent(key)}`);
+        const j = await res.json().catch(()=>null);
+        if(res.ok){ settings.key = key; saveSettings(); sync(); msg.className="keymsg ok"; msg.textContent="✓ 接続できました。写真を入れてください"; $("settings").open=false; }
+        else if(res.status===404){ settings.key = key; saveSettings(); sync(); msg.className="keymsg ng"; msg.textContent="キーは保存しましたが、このモデルが見つかりません。別のモデルを選んでください"; }
+        else { msg.className="keymsg ng"; msg.textContent = "このキーでは接続できませんでした" + (j&&j.error&&j.error.message ? `（${j.error.message.slice(0,80)}）` : ""); }
+      }catch(e){ msg.className="keymsg ng"; msg.textContent = whyBlocked(); }
+    });
+    sync();
+    if(!useGemini() && settings.mode==="gemini") $("settings").open = true;
+  }
+
+  function updateProgress(p){
+    const bar = document.querySelector(`[data-prog="${p.id}"]`); if(bar) bar.style.width = Math.round(p.progress*100)+"%";
+    const lab = document.querySelector(`[data-lab="${p.id}"]`); if(lab) lab.textContent = p.label;
+  }
+
+  // ================= checks =================
+  const rowBad = it => it.qty!==null && it.unit_price!==null && it.amount!==null && Math.abs(it.qty*it.unit_price - it.amount) > 0.5;
+  const itemsSum = d => d.items.reduce((a,it)=>a+(it.amount||0),0);
+
+  // ================= render =================
+  function months(){ return [...new Set(records.map(monthOf))].sort().reverse(); }
+  function visible(){
+    const ms = months();
+    let m = month==="__latest" ? (ms[0]||"__all") : month;
+    if(m!=="__all" && !ms.includes(m)) m = ms[0] || "__all";
+    shownMonth = m;
+    const list = m==="__all" ? records.slice() : records.filter(r=>monthOf(r)===m);
+    return list.sort((a,b)=> (b.data.date||"").localeCompare(a.data.date||"") || (b.createdAt||"").localeCompare(a.createdAt||""));
+  }
+  function render(){
+    renderPending();
+    const vis = visible();
+    const sel = $("monthSel"); sel.replaceChildren();
+    for(const m of months()){
+      const n = records.filter(r=>monthOf(r)===m).length;
+      sel.append(el("option",{value:m}, (m==="日付不明"?m:m.replace("-","年")+"月")+`（${n}枚）`));
+    }
+    sel.append(el("option",{value:"__all"},`全期間（${records.length}枚）`));
+    sel.value = shownMonth;
+    $("toolbar").hidden = !records.length;
+    const list = $("list"); list.replaceChildren();
+    for(const r of vis) list.append(slipCard(r, false));
+    $("empty").hidden = records.length>0;
+    $("recordsTitle").textContent = records.length ? "記録した伝票" : "記録した伝票（まだありません）";
+    const rows = vis.reduce((a,r)=>a+r.data.items.length,0);
+    $("barInfo").textContent = `記録 ${records.length} 枚` + (records.length? `／表示中 ${vis.length} 枚・${rows} 行` : "");
+    $("exportBtn").disabled = !vis.length || !window.XLSX;
+    $("exportBtn").textContent = shownMonth==="__all" ? "全期間を Excel に" : "この月を Excel に";
+  }
+  function renderPending(){
+    const box = $("pending"); box.replaceChildren();
+    $("pendingTitle").hidden = !pending.length;
+    for(const p of pending){
+      if(p.status==="review"){ box.append(slipCard(p, true)); continue; }
+      const card = el("section",{class:"slip review"});
+      const head = el("div",{class:"slip-head"});
+      if(p.photo) head.append(thumb(p.photo));
+      head.append(el("div",{class:"meta"}));
+      if(p.status==="error") head.append(el("button",{class:"del",type:"button","aria-label":"閉じる",onclick:()=>{pending=pending.filter(x=>x!==p);render();}},"✕"));
+      card.append(head);
+      if(p.status==="reading"){
+        card.append(el("div",{class:"progress"}, el("i",{"data-prog":p.id,style:`width:${Math.round(p.progress*100)}%`})));
+        card.append(el("div",{class:"status"}, el("span",{class:"dots","data-lab":p.id}, p.label)));
+      }else if(p.status==="error") card.append(el("div",{class:"status err"}, p.error,
+        p.retryFile ? el("button",{class:"addrow",type:"button",style:"margin-left:8px",onclick:()=>{ pending=pending.filter(x=>x!==p); readWithGemini(p.retryFile); }},"もう一度読み取る") : null));
+      box.append(card);
+    }
+    $("empty").hidden = records.length>0;
+  }
+  function thumb(src){
+    return el("button",{class:"thumb",type:"button","aria-label":"写真を大きく見る",onclick:()=>{ $("photoBig").src=src; $("photoDlg").showModal(); }}, el("img",{src,alt:""}));
+  }
+
+  async function saveRecord(r){
+    try{ await DB.put("slips", r); }catch(e){ showStore("記録の保存に失敗しました。スマホの空き容量を確認してください。", true); throw e; }
+  }
+  let saveTimers = {};
+  function persistLater(r){
+    clearTimeout(saveTimers[r.id]);
+    saveTimers[r.id] = setTimeout(()=>{ saveRecord(r).catch(()=>{}); learn(r.data); }, 400);
+  }
+
+  async function commitPending(p){
+    const d = p.data;
+    d.items = d.items.filter(it=>it.name||it.code||it.amount!==null);
+    const dup = d.slip_no && records.find(r=>r.data.slip_no===d.slip_no && (r.data.supplier||"")===(d.supplier||""));
+    if(dup && !confirm(`伝票番号 ${d.slip_no} は既に記録されています。別の伝票として記録しますか？`)) return;
+    d.items.forEach(it=>{ delete it.estimated; });
+    const rec = { id:p.id, data:d, photo:p.photo||"", rawText:p.rawText||"", createdAt:new Date().toISOString() };
+    try{ await saveRecord(rec); }catch(e){ return; }
+    await learn(d);
+    records.push(rec);
+    pending = pending.filter(x=>x!==p);
+    month = monthOf(rec);
+    refreshLists(); render();
+    // show where it went
+    const card = document.querySelector(`[data-rec="${rec.id}"]`);
+    if(card){ card.classList.add("justsaved"); setTimeout(()=>card.classList.remove("justsaved"), 2500); }
+    toast(pending.some(x=>x.status==="review") ? "記録しました。下の「記録した伝票」に入っています" : "記録しました");
+    if(!pending.length && card) card.scrollIntoView({behavior:"smooth", block:"center"});
+  }
+  let toastT;
+  function toast(msg){
+    let t = $("toast"); if(!t){ t = el("div",{id:"toast",role:"status"}); document.body.append(t); }
+    t.textContent = msg; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove("show"), 2600);
+  }
+
+  function slipCard(r, isReview){
+    const d = r.data;
+    const save = isReview ? ()=>{} : ()=>persistLater(r);
+    const card = el("section",{class:"slip"+(isReview?" review":""), "data-rec": isReview?null:r.id});
+    const head = el("div",{class:"slip-head"});
+    if(r.photo) head.append(thumb(r.photo));
+    const meta = el("div",{class:"meta"});
+    const f = (label,key,list)=>el("div",null, el("label",null,label),
+      el("input",{value:d[key],"aria-label":label,list:list||null,type:key==="date"?"date":"text",onchange:e=>{ d[key]=e.target.value; save(); if(key==="supplier"&&isReview){ applyMemory(d); render(); } }}));
+    meta.append(f("日付","date"), f("仕入先","supplier","supplierList"), f("伝票番号","slip_no"));
+    head.append(meta, el("button",{class:"del",type:"button","aria-label":isReview?"この読み取りを捨てる":"この伝票の記録を削除",onclick:async()=>{
+      if(isReview){ if(confirm("この読み取り結果を捨てますか？")){ pending=pending.filter(x=>x!==r); render(); } return; }
+      if(confirm(`伝票番号 ${d.slip_no||"(なし)"} の記録を削除しますか？\nこの操作は元に戻せません。`)){
+        try{ await DB.del("slips", r.id); records = records.filter(x=>x!==r); render(); }catch(e){ showStore("削除に失敗しました。", true); } } }},"✕"));
+    card.append(head);
+
+    const cols = [["code","コード",""],["name","品名・容量","name"],["maker","メーカー",""],["qty","数量","num"],["unit","単位",""],["unit_price","単価","num"],["amount","金額","num"]];
+    const tbl = el("table");
+    const hr = el("tr"); for(const [,h] of cols) hr.append(el("th",null,h)); hr.append(el("th",null,"★"), el("th",null,""));
+    tbl.append(el("thead",null,hr));
+    const tb = el("tbody");
+    const rowCls = it => rowBad(it) ? "bad" : (it.estimated ? "est" : "");
+    d.items.forEach((it,i)=>{
+      const tr = el("tr",{class: rowCls(it)});
+      for(const [k,h,t] of cols){
+        const isNum = t==="num";
+        tr.append(el("td",{class:t}, el("input",{value: isNum?fmt(it[k]):it[k], inputmode: isNum?"decimal":null, "aria-label":h, list: t==="name"?"productList":null,
+          onchange:e=>{
+            it[k] = isNum? num(e.target.value) : e.target.value;
+            if(isNum) e.target.value = fmt(it[k]);
+            if(k==="name"){ const p = products.find(p=>p.name===it.name); if(p){ it.code = it.code||p.code; it.maker = it.maker||p.maker; it.unit = it.unit||p.unit; if(it.unit_price===null) it.unit_price=p.unit_price; it.reduced_tax=p.reduced_tax; } }
+            if((k==="qty"||k==="unit_price") && it.qty!==null && it.unit_price!==null && it.amount===null) it.amount = Math.round(it.qty*it.unit_price);
+            delete it.estimated;
+            save();
+            if(k==="name"||k==="qty"||k==="unit_price") { render(); } else refreshChecks();
+          }})));
+      }
+      tr.append(el("td",{class:"star"}, el("input",{type:"checkbox",checked:!!it.reduced_tax,"aria-label":"軽減税率",onchange:e=>{it.reduced_tax=e.target.checked;save();}})));
+      tr.append(el("td",null, el("button",{class:"rowdel",type:"button","aria-label":"行を削除",onclick:()=>{d.items.splice(i,1);save();render();}},"🗑")));
+      tb.append(tr);
+    });
+    tbl.append(tb);
+    card.append(el("div",{class:"tablewrap"},tbl));
+
+    const nf = (label,key)=>el("div",null, el("label",null,label),
+      el("input",{value:fmt(d[key]??null),inputmode:"decimal","aria-label":label,style:"text-align:right",onchange:e=>{ d[key]=num(e.target.value); e.target.value=fmt(d[key]); save(); refreshChecks(); }}));
+    card.append(el("div",{class:"meta totals"}, nf("伝票の合計（税抜）","subtotal"), nf("消費税","tax"), nf("税込合計","total")));
+    const sums = el("div",{class:"sums"}); const checkEl = el("div");
+    function refreshChecks(){
+      [...tb.rows].forEach((row,i)=>row.className = rowCls(d.items[i]));
+      const sum = itemsSum(d); const bad = d.items.filter(rowBad).length; const est = d.items.filter(it=>it.estimated).length;
+      sums.textContent = `明細合計 ${fmt(sum)} 円（${d.items.length}行）`;
+      const parts = [];
+      if(!d.items.length) parts.push(el("span",{class:"check-ng"},"明細が読み取れませんでした。「＋行を追加」で入力してください"));
+      if(bad) parts.push(el("span",{class:"check-ng"},`数量×単価が合わない行 ${bad}件`));
+      if(est) parts.push(el("span",{class:"check-warn"},`推測で埋めた行 ${est}件（黄色）`));
+      const st = d.subtotal ?? null, tx = d.tax ?? null, tt = d.total ?? null;
+      if(st!==null && d.items.length && Math.abs(sum-st)>0.5) parts.push(el("span",{class:"check-ng"},`明細合計と伝票の合計（税抜）が ${fmt(sum-st)} 円ずれています（読み取れていない行がないか確認）`));
+      if(st!==null && tx!==null && tt!==null && Math.abs(st+tx-tt)>0.5) parts.push(el("span",{class:"check-warn"},`税抜合計＋消費税が税込合計と ${fmt(st+tx-tt)} 円合いません`));
+      if(!parts.length) parts.push(el("span",{class:"check-ok"},"✓ 計算は合っています"));
+      checkEl.replaceChildren(...parts.flatMap((p,i)=>i?[el("br"),p]:[p]));
+    }
+    refreshChecks();
+    const add = el("button",{class:"addrow",type:"button",onclick:()=>{d.items.push({code:"",maker:"",name:"",qty:null,unit:"",unit_price:null,amount:null,reduced_tax:false});save();render();}},"＋ 行を追加");
+    card.append(el("div",{class:"foot"}, el("div",null,sums,checkEl), add));
+    if(r.engine) card.append(el("div",{class:"status",style:"font-size:.8rem"}, `読み取り: ${r.engine}`));
+    if(r.engine && r.notes) card.append(el("div",{class:"status",style:"color:var(--warn)"},"要確認: "+r.notes));
+    else if(r.rawText && !r.engine) card.append(el("details",{class:"raw"}, el("summary",null,"読み取った文字をそのまま見る"), el("pre",null,r.rawText)));
+    if(isReview){
+      card.append(el("div",{class:"review-actions"},
+        el("span",{class:"hint"},"写真（左上をクリックで拡大）と見比べて、品名・数量・金額を直してから記録してください。直した品名は覚えておき、次回から同じ商品コードや単価の行に自動で入ります。"),
+        el("button",{type:"button",class:"btn2 primary",onclick:()=>commitPending(r)},"記録する"),
+        el("button",{type:"button",class:"btn2",onclick:()=>{ if(confirm("この読み取り結果を捨てますか？")){ pending=pending.filter(x=>x!==r); render(); } }},"捨てる")));
+    }
+    return card;
+  }
+
+  // ================= export =================
+  function downloadBlob(blob, name){
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 20000);
+  }
+  function exportXlsx(){
+    const done = visible().slice().sort((a,b)=>(a.data.date||"").localeCompare(b.data.date||"") || (a.createdAt||"").localeCompare(b.createdAt||""));
+    if(!done.length || !window.XLSX) return;
+    const detail = [["日付","仕入先","伝票番号","コード","品名・容量","メーカー","数量","単位","単価","金額","軽減税率"]];
+    const summary = [["日付","仕入先","伝票番号","明細行数","明細合計","伝票の合計（税抜）","消費税","税込合計","差額（明細−税抜合計）"]];
+    for(const r of done){
+      const d = r.data;
+      for(const it of d.items) detail.push([d.date,d.supplier,d.slip_no,it.code,it.name,it.maker,it.qty,it.unit,it.unit_price,it.amount,it.reduced_tax?"★":""]);
+      const sm = itemsSum(d);
+      summary.push([d.date,d.supplier,d.slip_no,d.items.length,sm,d.subtotal??null,d.tax??null,d.total??null,(d.subtotal??null)===null?null:sm-d.subtotal]);
+    }
+    const wb = XLSX.utils.book_new();
+    const ws1 = XLSX.utils.aoa_to_sheet(detail);
+    ws1["!cols"] = [{wch:11},{wch:22},{wch:11},{wch:11},{wch:30},{wch:14},{wch:7},{wch:6},{wch:10},{wch:11},{wch:8}];
+    ws1["!autofilter"] = {ref: XLSX.utils.encode_range({s:{r:0,c:0},e:{r:detail.length-1,c:10}})};
+    for(let i=1;i<detail.length;i++) for(const c of [8,9]){ const a=XLSX.utils.encode_cell({r:i,c}); if(ws1[a]) ws1[a].z="#,##0"; }
+    // grand total row with live formulas
+    const n = summary.length, colL = c => XLSX.utils.encode_col(c);
+    summary.push(["合計","","",null,null,null,null,null,null]);
+    const ws2 = XLSX.utils.aoa_to_sheet(summary);
+    for(const c of [3,4,5,6,7,8]){
+      const v = summary.slice(1,n).reduce((acc,row)=>acc+(typeof row[c]==="number"?row[c]:0),0);   // cached value for viewers that don't recalc
+      ws2[XLSX.utils.encode_cell({r:n,c})] = {t:"n", v, f:`SUM(${colL(c)}2:${colL(c)}${n})`};
+    }
+    ws2["!cols"] = [{wch:11},{wch:22},{wch:11},{wch:8},{wch:11},{wch:15},{wch:10},{wch:11},{wch:18}];
+    for(let i=1;i<=n;i++) for(const c of [4,5,6,7,8]){ const a=XLSX.utils.encode_cell({r:i,c}); if(ws2[a]) ws2[a].z="#,##0"; }
+    XLSX.utils.book_append_sheet(wb, ws1, "明細");
+    XLSX.utils.book_append_sheet(wb, ws2, "伝票一覧");
+    const buf = XLSX.write(wb,{bookType:"xlsx",type:"array"});
+    downloadBlob(new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}),
+      shownMonth==="__all" ? "納品書_全期間.xlsx" : `納品書_${shownMonth}.xlsx`);
+  }
+
+  // ================= backup =================
+  function backup(){
+    const today = new Date().toISOString().slice(0,10);
+    downloadBlob(new Blob([JSON.stringify({app:"nouhinsho",version:1,savedAt:new Date().toISOString(),records,products})],{type:"application/json"}), `納品書バックアップ_${today}.json`);
+  }
+  async function restore(file){
+    try{
+      const j = JSON.parse(await file.text());
+      if(j.app!=="nouhinsho" || !Array.isArray(j.records)) throw 0;
+      if(!confirm(`バックアップの伝票 ${j.records.length} 枚を取り込みます。同じ伝票は上書きされます。よろしいですか？`)) return;
+      for(const r of j.records) if(r && r.id && r.data) await DB.put("slips", r);
+      for(const p of (j.products||[])) if(p && p.key) await DB.put("products", p);
+      await loadAll(); showStore(`バックアップから ${j.records.length} 枚を戻しました。`);
+    }catch(e){ showStore("このファイルはバックアップとして読み込めませんでした。", true); }
+  }
+
+  // ================= wire up =================
+  $("libInput").addEventListener("change", e=>{ const fs=[...e.target.files]; e.target.value=""; addFiles(fs); });
+  const drop = $("drop");
+  ["dragenter","dragover"].forEach(t=>document.addEventListener(t, e=>{ e.preventDefault(); drop.classList.add("over"); }));
+  document.addEventListener("dragleave", e=>{ if(!e.relatedTarget) drop.classList.remove("over"); });
+  document.addEventListener("drop", e=>{ e.preventDefault(); drop.classList.remove("over"); addFiles(e.dataTransfer && e.dataTransfer.files); });
+  $("exportBtn").addEventListener("click", exportXlsx);
+  $("monthSel").addEventListener("change", e=>{ month = e.target.value; render(); });
+  $("backupBtn").addEventListener("click", backup);
+  $("restoreInput").addEventListener("change", e=>{ const f=e.target.files[0]; e.target.value=""; if(f) restore(f); });
+  $("photoDlg").addEventListener("click", e=>{ if(e.target===$("photoDlg")) $("photoDlg").close(); });
+
+  if(!window.XLSX || (!window.Tesseract && settings.mode==="local")){
+    const n=$("libNote"); n.hidden=false;
+    n.textContent = "部品の読み込みに失敗しました。インターネットにつながる場所でページを開き直してください。";
+  }
+  if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
+  initSettings();
+  loadAll();
+  // warm up the reader in the background so the first scan is quicker
+  if(window.Tesseract && !useGemini()) setTimeout(()=>{ getWorker().catch(()=>{}); }, 1500);
+})();
+</script>
+</body>
+</html>
